@@ -46,7 +46,7 @@ For each reviewer:
 - `model`: the configured `interrogate reviewers` entry, or the table default with no configured line.
 - Read-only: tell it in the prompt not to edit files
 
-Resolve each entry per the value grammar in the **setup-pstack** skill (`opus`/`sonnet`/`haiku`/`fable` set `model`, `inherit` omits it, `agent:<name>` sets `subagent_type`). If a configured entry fails to spawn, run that reviewer on its table default and say so.
+Resolve each entry per the value grammar and spawning rules in the **setup-pstack** skill (`opus`/`sonnet`/`haiku`/`fable` set `model`, `inherit` omits it, `agent:<name>` sets `subagent_type`, `codex:<model>` spawns `pstack:codex-bridge`, `openrouter:<id>` spawns `pstack:openrouter-bridge`, `@<alias>` expands first). External reviewers get `Mode: review`. If a configured entry fails to spawn, run that reviewer on its table default and say so.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

@@ -51,11 +51,25 @@ The "Platform mapping" table in `skills/poteto-mode/SKILL.md` tells the agent ho
 
 ## Multi-model panels
 
-Upstream runs `arena`, `architect`, and `interrogate` across Claude, GPT, and Grok on purpose. The default here is Claude only (`opus, opus, sonnet`). To bring back other vendors, define custom subagents that route to those models (for example through a proxy), then point panel roles at them in `/pstack:setup-pstack`. The agent names below are placeholders:
+Upstream runs `arena`, `architect`, and `interrogate` across Claude, GPT, and Grok on purpose. The default here is Claude only (`opus, opus, sonnet`). Two bridge agents bring other vendors back without a proxy:
+
+| Value | Bridge | Needs | Fits |
+|---|---|---|---|
+| `codex:<model>` | `pstack:codex-bridge` runs `codex exec` | [Codex CLI](https://github.com/openai/codex) logged in (`codex login`), so it uses your ChatGPT plan | Every seat. Codex reads files and runs commands itself, and edits files in `write` mode inside the seat's worktree. |
+| `openrouter:<model-id>` | `pstack:openrouter-bridge` runs `bin/openrouter-ask` | `OPENROUTER_API_KEY` in the environment | Review, judge, and design seats. Text-in, text-out. |
+
+Aliases keep a rotating model in one place. `/pstack:setup-pstack` writes them, and you can edit them by hand:
 
 ```
-interrogate reviewers: opus, agent:my-gpt-reviewer, agent:my-gemini-reviewer
+@luna: codex:gpt-6-luna
+@free: openrouter:stealth/space-bunny-alpha
+interrogate reviewers: opus, @luna, @free
+arena cross-judge pool: opus, @luna, @free
 ```
+
+`openrouter-ask --list-free` prints the current free OpenRouter models. A failed or rate-limited external seat falls back to the skill's default model, and the reply says so.
+
+External seats send code and diffs to that provider. Free and stealth OpenRouter models may log prompts. Keep panels Claude-only for code you cannot share.
 
 ## Not ported
 

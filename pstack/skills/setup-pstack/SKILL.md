@@ -1,6 +1,6 @@
 ---
 name: setup-pstack
-description: Configure which model or subagent pstack uses per role. Writes ~/.claude/pstack-models.md, which every pstack skill reads before spawning subagents. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
+description: Configure which model or subagent pstack uses per role, including Codex CLI and OpenRouter models. Writes ~/.claude/pstack-models.md, which every pstack skill reads before spawning subagents. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
 ---
 
 # Setup pstack
@@ -15,17 +15,29 @@ Every role value is one of these. A panel role takes a comma-separated list, and
 |---|---|
 | `opus`, `sonnet`, `haiku`, `fable` | `subagent_type` as the skill prescribes, `model` set to the value. |
 | `inherit` | `model` omitted. The role runs on the parent session's model. |
-| `agent:<name>` | `subagent_type: "<name>"`, `model` omitted. Use this for custom or proxy-routed agents (for example an agent you defined in `~/.claude/agents/` that routes to another vendor's model), which pin their own model. |
+| `agent:<name>` | `subagent_type: "<name>"`, `model` omitted. For custom agents you defined in `~/.claude/agents/` or another plugin. |
+| `codex:<model>` | `subagent_type: "pstack:codex-bridge"`. The brief starts with `Codex model: <model>`, `Mode: review` or `Mode: write`, and `Working directory: <path>`. Runs on the ChatGPT subscription through the Codex CLI. Codex can read files and run commands, so it fits every seat, including arena runners in `write` mode inside their own worktree. |
+| `openrouter:<model-id>` | `subagent_type: "pstack:openrouter-bridge"`. The brief starts with `OpenRouter model: <model-id>`. Text-in, text-out, so it fits review, judge, and design-sketch seats. For a code-writing seat, the parent applies the returned patch. |
+| `@<alias>` | Look up the `@<alias>:` line in the same file and use its value. Aliases let one line change a model everywhere, for example a free OpenRouter model that rotates often. |
+
+**Spawning rules for every skill.** Read the file once per task. Use the role's line, or the skill's default when the file or the line is missing. Expand aliases first. When a spawn fails, or a bridge replies `FAILED`, rerun that seat on the skill's default and say so in the reply. A bridge returns another model's words. Judge them like any reviewer's, and never cite them as your own verification.
 
 ## Steps
 
 ### 1. Detect what is available
 
-List the `model` values the Agent tool accepts in this session, and the custom agent types listed for the Agent tool (user, project, and plugin agents). Those two lists are the detected set. `inherit` is always valid. Never write an `agent:<name>` whose agent is not in the detected set.
+Build the detected set:
+
+- The `model` values the Agent tool accepts in this session.
+- The custom agent types listed for the Agent tool (user, project, and plugin agents).
+- Codex: `codex --version` succeeds and `codex login status` reports a login. Then `codex:<any model>` is valid. Codex rejects unknown models at run time, so name the model the user asked for.
+- OpenRouter: `OPENROUTER_API_KEY` is set (check with `[ -n "$OPENROUTER_API_KEY" ]`, never print it). Then `openrouter:<id>` is valid for any id in `openrouter-ask --list-free` or the full list at `https://openrouter.ai/api/v1/models`.
+
+`inherit` is always valid.
 
 ### 2. Load current state
 
-The default mapping is the file shape in step 5. If `~/.claude/pstack-models.md` exists, read it and treat its `# budget` line and role values as the current choices. Otherwise start from the defaults. A line whose role is not in step 5 is from a retired role. Drop it.
+The default mapping is the file shape in step 5. If `~/.claude/pstack-models.md` exists, read it and treat its `# budget` line, alias lines, and role values as the current choices. Otherwise start from the defaults. A line whose role is not in step 5 is from a retired role. Drop it.
 
 ### 3. Budget, map, and confirm
 
@@ -35,22 +47,28 @@ The default mapping is the file shape in step 5. If `~/.claude/pstack-models.md`
 - `balanced`: the step 5 defaults.
 - `lean`: every `opus` role becomes `sonnet`, and swarm workers become `haiku`.
 
-**(b) Apply it.** Build the working table from the defaults with the budget applied. On a re-run, keep any role the user set to a value the budget does not touch (`inherit`, `fable`, `agent:<name>`, or a customized list).
+**(b) Apply it.** Build the working table from the defaults with the budget applied. On a re-run, keep any role the user set to a value the budget does not touch (`inherit`, `fable`, `agent:`, `codex:`, `openrouter:`, an alias, or a customized list).
 
-**(c) Show the roles and confirm.** Show every role with its value, and list each line step 2 dropped. Ask with AskUserQuestion whether to accept as-is or change specific roles. When the detected set includes custom agents backed by non-Claude models, point out that adding them to the panel roles (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`) restores the multi-model diversity those skills were designed around.
+**(c) External models.** When Codex or OpenRouter is detected, ask which external models to use and define each as an alias (for example `@luna: codex:gpt-6-luna`, `@free: openrouter:<id>`). For OpenRouter free models, show the current `openrouter-ask --list-free` output as the options. Offer to put one alias seat in each panel role (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`), which restores the multi-vendor diversity those skills were designed around. Tell the user that external seats send code and diffs to that provider, and that free and stealth models may log prompts.
+
+**(d) Show the roles and confirm.** Show every alias and role with its value, and list each line step 2 dropped. Ask with AskUserQuestion whether to accept as-is or change specific roles.
 
 ### 4. Validate
 
-Every value must parse per the grammar and be in the detected set. If one is not, stop and ask again.
+Every value must parse per the grammar, every alias must be defined, and every value must be in the detected set. If one is not, stop and ask again.
 
 ### 5. Write the file
 
-Overwrite `~/.claude/pstack-models.md` whole, so re-runs stay idempotent. Shape:
+Overwrite `~/.claude/pstack-models.md` whole, so re-runs stay idempotent. Alias lines go first. Shape:
 
 ```
 # pstack model configuration. One line per role. Delete a line to fall back to the skill default.
-# Values: opus | sonnet | haiku | fable | inherit | agent:<subagent_type>. Panel roles take a comma-separated list; one subagent per entry.
+# Values: opus | sonnet | haiku | fable | inherit | agent:<subagent_type> | codex:<model> | openrouter:<model-id> | @<alias>
+# Panel roles take a comma-separated list; one subagent per entry.
 # budget: balanced
+# Aliases. Change a model everywhere by editing one line here.
+# @luna: codex:gpt-6-luna
+# @free: openrouter:openrouter/free
 feature, refactoring: sonnet
 bug-fix: sonnet
 perf-issue: sonnet
@@ -70,9 +88,11 @@ architect runners: opus, opus, sonnet
 interrogate reviewers: opus, opus, sonnet
 ```
 
+Write active aliases without the leading `# `.
+
 ### 6. Confirm
 
-Tell the user the file was written. Skills read it at spawn time, so it applies immediately. Re-running this skill updates it.
+Tell the user the file was written. Skills read it at spawn time, so it applies immediately. To swap a free model later, edit its alias line or re-run this skill.
 
 ### 7. Offer a verification skill (optional)
 

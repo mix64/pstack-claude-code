@@ -30,7 +30,7 @@ For each candidate, read the first JSONL line and check that `message.content[0]
 
 One message, three `Agent` calls, `subagent_type: general-purpose`, with `model` set as below. Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript). Readonly strips MCPs.
 
-Each reviewer and the synthesizer name a role line in `~/.claude/pstack-models.md` (written by `/setup-pstack`) and a default. Read the file once. Use the line's value, or the default if the file or the line is missing. `opus`, `sonnet`, `haiku`, or `fable` sets `model`. `inherit` omits `model`. `agent:<name>` sets `subagent_type` to `<name>` and omits `model`. If a spawn fails on a configured value, rerun it on the default and say so.
+Each reviewer and the synthesizer name a role line in `~/.claude/pstack-models.md` (written by `/setup-pstack`) and a default. Use the line's value, or the default if the file or the line is missing. Resolve each value per the value grammar and spawning rules in the **setup-pstack** skill (`opus`/`sonnet`/`haiku`/`fable` set `model`, `inherit` omits it, `agent:<name>` sets `subagent_type`, `codex:<model>` spawns `pstack:codex-bridge`, `openrouter:<id>` spawns `pstack:openrouter-bridge`, `@<alias>` expands first). If a spawn fails or a bridge replies `FAILED`, rerun it on the default and say so.
 
 | Lens | Role line | Default `model` | Prompt template |
 |---|---|---|---|

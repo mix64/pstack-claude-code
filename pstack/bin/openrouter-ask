@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+// Send one prompt to an OpenRouter model and print the reply.
+//   openrouter-ask --model <id> [--prompt-file <path>] [--max-tokens N]   (prompt on stdin otherwise)
+//   openrouter-ask --list-free
+// Reads the key from OPENROUTER_API_KEY and never prints it.
+import { readFileSync } from "node:fs";
+
+const API = "https://openrouter.ai/api/v1";
+
+function parseArgs(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--list-free") args.listFree = true;
+    else if (a === "--model") args.model = argv[++i];
+    else if (a === "--prompt-file") args.promptFile = argv[++i];
+    else if (a === "--max-tokens") args.maxTokens = Number(argv[++i]);
+    else fail(`unknown argument: ${a}`);
+  }
+  return args;
+}
+
+function fail(message, code = 2) {
+  process.stderr.write(`openrouter-ask: ${message}\n`);
+  process.exit(code);
+}
+
+async function listFree() {
+  const res = await fetch(`${API}/models`);
+  if (!res.ok) fail(`model list failed: HTTP ${res.status}`, 1);
+  const { data } = await res.json();
+  const free = data.filter((m) => m.pricing?.prompt === "0" && m.pricing?.completion === "0");
+  for (const m of free) process.stdout.write(`${m.id}\t${m.context_length ?? "?"}\t${m.name}\n`);
+}
+
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function ask({ model, promptFile, maxTokens }) {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) fail("OPENROUTER_API_KEY is not set", 1);
+  if (!model) fail("--model is required");
+  const prompt = promptFile ? readFileSync(promptFile, "utf8") : await readStdin();
+  if (!prompt.trim()) fail("empty prompt");
+
+  const res = await fetch(`${API}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "X-Title": "pstack-claude-code",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.error) {
+    fail(`HTTP ${res.status}: ${body.error?.message ?? "request failed"}`, 1);
+  }
+  const text = body.choices?.[0]?.message?.content;
+  if (typeof text !== "string" || !text.trim()) fail("empty completion", 1);
+  process.stdout.write(text.endsWith("\n") ? text : `${text}\n`);
+  process.stderr.write(`openrouter-ask: model=${body.model ?? model} tokens=${body.usage?.total_tokens ?? "?"}\n`);
+}
+
+const args = parseArgs(process.argv.slice(2));
+await (args.listFree ? listFree() : ask(args));

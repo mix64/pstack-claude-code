@@ -10,7 +10,7 @@ Investigate the motivation and intent behind code.
 
 Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Each spawn below names a role line in `~/.claude/pstack-models.md` (written by `/setup-pstack`) and a default. Read the file once. Use the line's value, or the default if the file or the line is missing. `opus`, `sonnet`, `haiku`, or `fable` sets `model`. `inherit` omits `model`. `agent:<name>` sets `subagent_type` to `<name>` and omits `model`. If a spawn fails on a configured value, rerun it on the default and say so.
+Each spawn below names a role line in `~/.claude/pstack-models.md` (written by `/setup-pstack`) and a default. Use the line's value, or the default if the file or the line is missing. Resolve each value per the value grammar and spawning rules in the **setup-pstack** skill (`opus`/`sonnet`/`haiku`/`fable` set `model`, `inherit` omits it, `agent:<name>` sets `subagent_type`, `codex:<model>` spawns `pstack:codex-bridge`, `openrouter:<id>` spawns `pstack:openrouter-bridge`, `@<alias>` expands first). If a spawn fails or a bridge replies `FAILED`, rerun it on the default and say so.
 
 ## Operating Posture
 
