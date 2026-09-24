@@ -40,3 +40,7 @@ Report the evidence, not just the outcome:
 - Name the failing-before test or executable check and the failure it produced.
 - Name the passing-after test run and any nearby validation performed.
 - If failing-before evidence could not be demonstrated, state why and describe the closest regression check used instead.
+
+## pstack on Claude Code
+
+`<pstack>` is `${CLAUDE_PLUGIN_ROOT}`. Other pstack skills named here (in bold, or as `principle-*`) live at `<pstack>/skills/<name>/SKILL.md`. They are user-invocable only, so Read them with the Read tool instead of the Skill tool. Per-role models come from `~/.claude/pstack-models.md` (see the **setup-pstack** skill). Cursor-specific terms map per the Platform mapping table in `<pstack>/skills/poteto-mode/SKILL.md`.

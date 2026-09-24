@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Each spawn below names a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message.
+Each spawn below names a role line in `~/.claude/pstack-models.md` (written by `/setup-pstack`) and a default. Read the file once. Use the line's value, or the default if the file or the line is missing. `opus`, `sonnet`, `haiku`, or `fable` sets `model`. `inherit` omits `model`. `agent:<name>` sets `subagent_type` to `<name>` and omits `model`. If a spawn fails on a configured value, rerun it on the default and say so.
 
 ## Step 1. Assess Complexity
 
@@ -23,29 +23,29 @@ When in doubt, take the simple path.
 
 Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `how explorer` line, default `grok-4.7-xhigh-fast`
-- `readonly`: `true`
+- `subagent_type`: `general-purpose`
+- `model`: the `how explorer` line, default `sonnet`
+- Read-only: tell it in the prompt not to edit files
 
 Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
 
 ## Step 2b. Direct Explain (simple questions)
 
-Spawn one Task subagent that explores and explains in one pass:
+Spawn one Agent subagent that explores and explains in one pass:
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `how explainer` line, default `claude-opus-5-5-max`
-- `readonly`: `true`
+- `subagent_type`: `general-purpose`
+- `model`: the `how explainer` line, default `opus`
+- Read-only: tell it in the prompt not to edit files
 
 Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
 
 ## Step 3. Synthesize (complex questions only)
 
-Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:
+Once all explorers have returned, spawn one Agent subagent to synthesize their findings into one explanation:
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `how explainer` line, default `claude-opus-5-5-max`
-- `readonly`: `true`
+- `subagent_type`: `general-purpose`
+- `model`: the `how explainer` line, default `opus`
+- Read-only: tell it in the prompt not to edit files
 
 Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
 
@@ -56,3 +56,7 @@ Present the explainer's output to the user. Light edits for clarity or context f
 ## Output Format
 
 The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.
+
+## pstack on Claude Code
+
+`<pstack>` is `${CLAUDE_PLUGIN_ROOT}`. Other pstack skills named here (in bold, or as `principle-*`) live at `<pstack>/skills/<name>/SKILL.md`. They are user-invocable only, so Read them with the Read tool instead of the Skill tool. Per-role models come from `~/.claude/pstack-models.md` (see the **setup-pstack** skill). Cursor-specific terms map per the Platform mapping table in `<pstack>/skills/poteto-mode/SKILL.md`.

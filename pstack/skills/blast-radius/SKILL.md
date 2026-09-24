@@ -48,3 +48,7 @@ Step 4 is usually one small script that imports the same library the app ships a
 Write it through `unslop`, cite real code, and strip anything private before it goes anywhere public.
 
 **Reply:** the writeup above, with the one safety fact either proven or marked unproven.
+
+## pstack on Claude Code
+
+`<pstack>` is `${CLAUDE_PLUGIN_ROOT}`. Other pstack skills named here (in bold, or as `principle-*`) live at `<pstack>/skills/<name>/SKILL.md`. They are user-invocable only, so Read them with the Read tool instead of the Skill tool. Per-role models come from `~/.claude/pstack-models.md` (see the **setup-pstack** skill). Cursor-specific terms map per the Platform mapping table in `<pstack>/skills/poteto-mode/SKILL.md`.

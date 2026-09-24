@@ -1,0 +1,11 @@
+{
+  "name": "local-plugins",
+  "owner": { "name": "mic" },
+  "plugins": [
+    {
+      "name": "pstack",
+      "source": "./pstack",
+      "description": "poteto's rigorous agent workflows, ported from Cursor to Claude Code."
+    }
+  ]
+}

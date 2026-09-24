@@ -10,7 +10,7 @@ Investigate the motivation and intent behind code.
 
 Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Each spawn below names a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message.
+Each spawn below names a role line in `~/.claude/pstack-models.md` (written by `/setup-pstack`) and a default. Read the file once. Use the line's value, or the default if the file or the line is missing. `opus`, `sonnet`, `haiku`, or `fable` sets `model`. `inherit` omits `model`. `agent:<name>` sets `subagent_type` to `<name>` and omits `model`. If a spawn fails on a configured value, rerun it on the default and say so.
 
 ## Operating Posture
 
@@ -61,7 +61,7 @@ Capture this as seed context (file paths, symbols, commits, PR numbers, linked t
 
 ### Discovery
 
-Before spawning investigators, list the available MCPs from the Cursor environment. Use the available-tools map when present. Otherwise inspect the `mcps/` directory Cursor exposes for enabled MCP servers.
+Before spawning investigators, list the available MCP servers. MCP tools are named `mcp__<server>__<tool>`, and some are deferred (listed by name only, loaded with ToolSearch). Group them by server. Pass each investigator the exact tool names it may use.
 
 Map each available MCP to one evidence category:
 
@@ -80,9 +80,9 @@ Aim for a complete **coverage map**, not a minimal one. Document the null, don't
 Launch all matching investigators in a single message so they run concurrently. Don't ask one agent to cover multiple MCPs.
 
 Subagent config (each):
-- `subagent_type`: `generalPurpose`
-- `model`: the `why investigators` line, default `grok-4.7-xhigh-fast`
-- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.
+- `subagent_type`: `general-purpose`
+- `model`: the `why investigators` line, default `sonnet`
+- Tools: keep MCP access (use `general-purpose`, not `Explore`), since MCP-backed investigators need it. Investigators still shouldn't write anything.
 
 Each investigator gets:
 1. The base prompt from `references/investigator-prompt.md`
@@ -124,9 +124,9 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 Spawn one synthesizer subagent:
 
-- `subagent_type`: `generalPurpose`
-- `model`: the `why synthesizer` line, default `claude-opus-5-5-max`
-- `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.
+- `subagent_type`: `general-purpose`
+- `model`: the `why synthesizer` line, default `opus`
+- Tools: keep MCP access (use `general-purpose`, not `Explore`). The synthesizer's quality check spot-verifies citations, which can require MCP access.
 
 The synthesizer gets:
 1. The investigator findings, including any null results and any categories skipped with justification
@@ -156,3 +156,7 @@ After the Sources Consulted block, if the user's `why` question is a precursor t
 - `references/source-playbook.md`. Index pointing at the category playbooks below.
 - `references/sources/*.md`. One self-contained example playbook per category, plus cross-cutting `incident-postmortem.md`. Give an investigator the single file that matches its category and adapt it to the available MCP.
 - `references/synthesizer-prompt.md`. Prompt template for the synthesizer subagent, including the output format.
+
+## pstack on Claude Code
+
+`<pstack>` is `${CLAUDE_PLUGIN_ROOT}`. Other pstack skills named here (in bold, or as `principle-*`) live at `<pstack>/skills/<name>/SKILL.md`. They are user-invocable only, so Read them with the Read tool instead of the Skill tool. Per-role models come from `~/.claude/pstack-models.md` (see the **setup-pstack** skill). Cursor-specific terms map per the Platform mapping table in `<pstack>/skills/poteto-mode/SKILL.md`.
