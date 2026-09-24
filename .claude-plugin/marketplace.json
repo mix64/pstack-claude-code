@@ -1,6 +1,6 @@
 {
-  "name": "local-plugins",
-  "owner": { "name": "mic" },
+  "name": "pstack-claude-code",
+  "owner": { "name": "mix64" },
   "plugins": [
     {
       "name": "pstack",

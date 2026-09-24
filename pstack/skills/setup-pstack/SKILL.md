@@ -15,7 +15,7 @@ Every role value is one of these. A panel role takes a comma-separated list, and
 |---|---|
 | `opus`, `sonnet`, `haiku`, `fable` | `subagent_type` as the skill prescribes, `model` set to the value. |
 | `inherit` | `model` omitted. The role runs on the parent session's model. |
-| `agent:<name>` | `subagent_type: "<name>"`, `model` omitted. Use this for custom or proxy-routed agents (for example `agent:ocx-gpt-5-6-luna`), which pin their own model. |
+| `agent:<name>` | `subagent_type: "<name>"`, `model` omitted. Use this for custom or proxy-routed agents (for example an agent you defined in `~/.claude/agents/` that routes to another vendor's model), which pin their own model. |
 
 ## Steps
 
