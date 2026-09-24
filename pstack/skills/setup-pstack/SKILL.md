@@ -18,9 +18,9 @@ Every role value is one of these. A panel role takes a comma-separated list, and
 | `agent:<name>` | `subagent_type: "<name>"`, `model` omitted. For custom agents you defined in `~/.claude/agents/` or another plugin. |
 | `codex:<model>` | `subagent_type: "pstack:codex-bridge"`. The brief starts with `Codex model: <model>`, `Mode: review` or `Mode: write`, and `Working directory: <path>`. Runs on the ChatGPT subscription through the Codex CLI. Codex can read files and run commands, so it fits every seat, including arena runners in `write` mode inside their own worktree. |
 | `openrouter:<model-id>` | `subagent_type: "pstack:openrouter-bridge"`. The brief starts with `OpenRouter model: <model-id>`. Text-in, text-out, so it fits review, judge, and design-sketch seats. For a code-writing seat, the parent applies the returned patch. |
-| `@<alias>` | Look up the `@<alias>:` line in the same file and use its value. Aliases let one line change a model everywhere, for example a free OpenRouter model that rotates often. |
+| `@<alias>` | Look up the `@<alias>:` line in the same file and use its value. Aliases let one line change a model everywhere, for example a free OpenRouter model that rotates often. An alias with an empty value (`@free:`) is disabled: panel seats that use it are skipped, and a single-value role that uses it falls back to the skill default. |
 
-**Spawning rules for every skill.** Read the file once per task. Use the role's line, or the skill's default when the file or the line is missing. Expand aliases first. When a spawn fails, or a bridge replies `FAILED`, rerun that seat on the skill's default and say so in the reply. A bridge returns another model's words. Judge them like any reviewer's, and never cite them as your own verification.
+**Spawning rules for every skill.** Read the file once per task. Use the role's line, or the skill's default when the file or the line is missing. Expand aliases first. When a spawn fails, or a bridge replies `FAILED`, rerun that seat on the skill's default and say so in the reply. A bridge returns another model's words. Judge them like any reviewer's, and never cite them as your own verification. A `codex:` seat that edits files is spawned with `isolation: "worktree"` and gets `Mode: write` with that worktree as its `Working directory`. Never point it at the user's checkout. Review its diff before taking any of it.
 
 ## Steps
 
@@ -49,13 +49,13 @@ The default mapping is the file shape in step 5. If `~/.claude/pstack-models.md`
 
 **(b) Apply it.** Build the working table from the defaults with the budget applied. On a re-run, keep any role the user set to a value the budget does not touch (`inherit`, `fable`, `agent:`, `codex:`, `openrouter:`, an alias, or a customized list).
 
-**(c) External models.** When Codex or OpenRouter is detected, ask which external models to use and define each as an alias (for example `@luna: codex:gpt-6-luna`, `@free: openrouter:<id>`). For OpenRouter free models, show the current `openrouter-ask --list-free` output as the options. Offer to put one alias seat in each panel role (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`), which restores the multi-vendor diversity those skills were designed around. Tell the user that external seats send code and diffs to that provider, and that free and stealth models may log prompts.
+**(c) External models.** When Codex or OpenRouter is detected, ask which external models to use and define each as an alias (for example `@luna: codex:gpt-6-luna`, `@free: openrouter:<id>`). For OpenRouter free models, show the current `openrouter-ask --list-free` output as the options. For each external model, ask which kind of work it may take. **Judgment seats** are the panel roles (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`). One external seat per panel restores the multi-vendor diversity those skills were designed around, and `arena runners` also writes code. **Bulk work** is `swarm workers` and `mechanical edits`: many simple, tightly scoped tasks. A model the user does not trust with judgment goes only in bulk work. Tell the user that external seats send code and diffs to that provider, and that free and stealth models may log prompts.
 
 **(d) Show the roles and confirm.** Show every alias and role with its value, and list each line step 2 dropped. Ask with AskUserQuestion whether to accept as-is or change specific roles.
 
 ### 4. Validate
 
-Every value must parse per the grammar, every alias must be defined, and every value must be in the detected set. If one is not, stop and ask again.
+Every value must parse per the grammar, every alias must be defined (an empty value counts as defined and disabled), and every value must be in the detected set. If one is not, stop and ask again.
 
 ### 5. Write the file
 
@@ -84,6 +84,7 @@ reflect judgment, divergent, synthesizer: opus
 arena runners: opus, opus, sonnet
 arena cross-judge pool: opus, sonnet
 swarm workers: sonnet
+mechanical edits: sonnet
 architect runners: opus, opus, sonnet
 interrogate reviewers: opus, opus, sonnet
 ```
@@ -92,7 +93,7 @@ Write active aliases without the leading `# `.
 
 ### 6. Confirm
 
-Tell the user the file was written. Skills read it at spawn time, so it applies immediately. To swap a free model later, edit its alias line or re-run this skill.
+Tell the user the file was written. Skills read it at spawn time, so it applies immediately. To swap a free model later, edit its alias line or re-run this skill. To drop it while no good free model exists, leave the value empty (`@free:`).
 
 ### 7. Offer a verification skill (optional)
 

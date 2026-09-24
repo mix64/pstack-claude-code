@@ -63,11 +63,15 @@ Aliases keep a rotating model in one place. `/pstack:setup-pstack` writes them, 
 ```
 @luna: codex:gpt-6-luna
 @free: openrouter:stealth/space-bunny-alpha
-interrogate reviewers: opus, @luna, @free
-arena cross-judge pool: opus, @luna, @free
+interrogate reviewers: opus, opus, @free
+arena cross-judge pool: opus, @free
+swarm workers: @luna
+mechanical edits: @luna
 ```
 
-`openrouter-ask --list-free` prints the current free OpenRouter models. A failed or rate-limited external seat falls back to the skill's default model, and the reply says so.
+Here `@free` takes judgment seats, while `@luna` only gets bulk work: parallel `swarm` slices and `mechanical edits` (bulk renames, boilerplate rewrites). The parent reviews every diff either way.
+
+`openrouter-ask --list-free` prints the current free OpenRouter models. Leave an alias empty (`@free:`) to drop its seats while no good free model is available. A failed or rate-limited external seat falls back to the skill's default model, and the reply says so.
 
 External seats send code and diffs to that provider. Free and stealth OpenRouter models may log prompts. Keep panels Claude-only for code you cannot share.
 
