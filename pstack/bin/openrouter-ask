@@ -6,18 +6,28 @@
 import { readFileSync } from "node:fs";
 
 const API = "https://openrouter.ai/api/v1";
+const TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS) || 600_000;
 
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--list-free") args.listFree = true;
-    else if (a === "--model") args.model = argv[++i];
-    else if (a === "--prompt-file") args.promptFile = argv[++i];
-    else if (a === "--max-tokens") args.maxTokens = Number(argv[++i]);
-    else fail(`unknown argument: ${a}`);
+    else if (a === "--model") args.model = value(argv, ++i, a);
+    else if (a === "--prompt-file") args.promptFile = value(argv, ++i, a);
+    else if (a === "--max-tokens") {
+      const n = Number(value(argv, ++i, a));
+      if (!Number.isInteger(n) || n <= 0) fail("--max-tokens must be a positive integer");
+      args.maxTokens = n;
+    } else fail(`unknown argument: ${a}`);
   }
   return args;
+}
+
+function value(argv, i, flag) {
+  const v = argv[i];
+  if (v === undefined || v.startsWith("--")) fail(`${flag} needs a value`);
+  return v;
 }
 
 function fail(message, code = 2) {
@@ -26,7 +36,7 @@ function fail(message, code = 2) {
 }
 
 async function listFree() {
-  const res = await fetch(`${API}/models`);
+  const res = await fetch(`${API}/models`, { signal: AbortSignal.timeout(60_000) });
   if (!res.ok) fail(`model list failed: HTTP ${res.status}`, 1);
   const { data } = await res.json();
   const free = data.filter((m) => m.pricing?.prompt === "0" && m.pricing?.completion === "0");
@@ -48,6 +58,7 @@ async function ask({ model, promptFile, maxTokens }) {
 
   const res = await fetch(`${API}/chat/completions`, {
     method: "POST",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
@@ -70,4 +81,8 @@ async function ask({ model, promptFile, maxTokens }) {
 }
 
 const args = parseArgs(process.argv.slice(2));
-await (args.listFree ? listFree() : ask(args));
+try {
+  await (args.listFree ? listFree() : ask(args));
+} catch (err) {
+  fail(err?.name === "TimeoutError" ? "request timed out" : String(err?.message ?? err), 1);
+}
