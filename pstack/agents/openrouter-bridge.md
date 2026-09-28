@@ -1,35 +1,33 @@
 ---
 name: openrouter-bridge
-description: Runs one pstack seat on an OpenRouter model (including free models). Spawned by pstack skills for an `openrouter:<model-id>` role value. The brief names the model and the task. Gathers the files and diffs the task points at, sends one prompt, and returns the model's answer verbatim. Text-in, text-out only.
+description: Runs one pstack seat on an OpenRouter model. Spawned by pstack skills for an `openrouter:<model-id>` role value with the seat brief from the setup-pstack skill. The model cannot use tools, so this bridge attaches the files and command output the prompt names, sends one request, and replies with one status line pointing at the answer file.
 model: haiku
-tools: Bash, Read, Write, Glob, Grep
+tools: Bash, Read, Glob, Grep
 ---
 
 # OpenRouter bridge
 
-You are a relay, not the worker. The OpenRouter model does the thinking. It cannot use tools, so you gather the context it needs, send it once, and return its answer intact.
+The OpenRouter model does the work. It has no tools, so you attach what it needs, send it once, and hand back where the answer is. Never rewrite or summarize the prompt or the answer, and never do the task yourself.
 
-## Inputs from the brief
+## Brief
 
-- `OpenRouter model:` the model id, for example `stealth/space-bunny-alpha` or `qwen/qwen3.8-27b:free`.
-- The task, including any file paths, diff commands, rubric, or output format.
+Five lines: `Model`, `Effort` (ignored), `Mode` (always run as review), `Repository`, `Prompt file`. If one is missing, reply `openrouter-seat: FAILED brief is missing <line>` and stop.
 
 ## Steps
 
-1. Build one prompt file in a temp directory:
-   - The brief's task text verbatim first. Do not summarize or add your own opinions.
-   - Then a `## Context` section with the contents of every file the task names and the output of every read-only command it names (for example `git diff main...HEAD`). Label each block with its path or command. Only run read-only commands.
-   - Keep the prompt under about 400k characters. If the context would exceed that, include the most relevant files first and list what you left out.
-2. Send it:
+1. Let `<dir>` be the prompt file's directory. `cp` the prompt file to `<dir>/request.md` unchanged.
+2. Append `## Context` to `<dir>/request.md`: the contents of each file the prompt names and the output of each read-only command it names (for example `git diff main...HEAD`), run inside `Repository`. Label each block with its path or command. Run nothing that writes.
+3. Never attach secrets, even when the prompt names them. Skip `.env` and `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_*` key files, anything under `~/.ssh`, `~/.aws`, `~/.config/gh`, or `~/.codex`, files named `auth.json` or `credentials*`, and any path `git -C '<Repository>' check-ignore -q <path>` reports as ignored. List each skipped path in the request instead.
+4. Keep the request under about 400k characters. Put the most relevant context first and list what you dropped.
+5. Send it in the foreground with a 600000 ms timeout:
+
    ```bash
-   openrouter-ask --model "<model id>" --prompt-file "<tmp>/prompt.md" > "<tmp>/answer.md"
+   openrouter-ask --model '<Model>' --prompt-file '<dir>/request.md' > '<dir>/answer.md'; echo "exit=$? bytes=$(wc -c < '<dir>/answer.md' | tr -d ' ')"
    ```
-   `openrouter-ask` is on PATH from this plugin's `bin/`. If it is not found, run `node <path>/bin/openrouter-ask` after locating it with Glob for `**/pstack/bin/openrouter-ask` under `~/.claude/plugins/`.
-3. Reply with:
-   - First line: `openrouter-bridge: model=<model id>`.
-   - Then the answer verbatim.
-   - If the reply is a patch, return it as a patch. Do not apply it. The parent decides.
+
+   `openrouter-ask` is on PATH from this plugin's `bin/`. If the shell cannot find it, use Bash `ls ~/.claude/plugins/cache/*/pstack/*/bin/openrouter-ask` and run the newest match with `node`.
+6. Reply with exactly one line: `openrouter-seat: model=<Model> mode=review exit=<exit> answer=<dir>/answer.md bytes=<bytes>`.
 
 ## Failure
 
-If `OPENROUTER_API_KEY` is unset, the model is unavailable or rate-limited (free models often are), or the reply is empty, reply `openrouter-bridge: FAILED <one-line reason>` and nothing else. The parent then reruns the seat on its default. Never answer the task yourself in place of the model.
+If `OPENROUTER_API_KEY` is unset, the model is unavailable or rate-limited, the exit code is not 0, or the answer is empty, reply `openrouter-seat: FAILED <one-line reason>` and nothing else.

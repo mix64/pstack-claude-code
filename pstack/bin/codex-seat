@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Run one pstack seat on Codex and leave the answer in a file next to the prompt.
+#
+#   codex-seat --model M [--effort E] --mode review|write --repo DIR --prompt FILE
+#
+# Prints one status line. Review seats get a read-only sandbox. Write seats get a
+# workspace-write sandbox, and only when DIR is a linked git worktree; anywhere else
+# the seat is downgraded to review so it can never write into the user's checkout.
+set -u
+
+model="" effort="" mode="review" repo="" prompt=""
+while [ $# -gt 0 ]; do
+	[ $# -ge 2 ] || { echo "codex-seat: FAILED missing value for $1"; exit 2; }
+	case "$1" in
+	--model) model=$2 ;;
+	--effort) effort=$2 ;;
+	--mode) mode=$2 ;;
+	--repo) repo=$2 ;;
+	--prompt) prompt=$2 ;;
+	*) echo "codex-seat: FAILED unknown argument $1"; exit 2 ;;
+	esac
+	shift 2
+done
+
+fail() { echo "codex-seat: FAILED $*"; exit 1; }
+
+[ -n "$model" ] || fail "--model is required"
+case "$mode" in review | write) ;; *) fail "--mode must be review or write" ;; esac
+[ -f "$prompt" ] || fail "prompt file not found: $prompt"
+[ -d "$repo" ] || fail "repository not found: $repo"
+command -v codex >/dev/null 2>&1 || fail "codex is not on PATH"
+case "$effort" in "" | default) effort="" ;; esac
+
+out_dir=$(cd "$(dirname "$prompt")" && pwd)
+answer="$out_dir/answer.md"
+log="$out_dir/codex.log"
+rm -f "$answer"
+
+note=""
+if [ "$mode" = "write" ]; then
+	git_dir=$(git -C "$repo" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)
+	common=$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+	if [ -z "$git_dir" ] || [ "$git_dir" = "$common" ]; then
+		mode="review"
+		note=" note=write-downgraded-repo-is-not-a-linked-worktree"
+	else
+		repo=$(git -C "$repo" rev-parse --show-toplevel)
+	fi
+fi
+sandbox=$([ "$mode" = "write" ] && echo workspace-write || echo read-only)
+
+# --ignore-user-config keeps the user's Codex MCP servers, hooks, and notify program
+# out of the run, since they execute outside Codex's sandbox. Login is unaffected.
+args=(exec --ignore-user-config -m "$model" -s "$sandbox" --skip-git-repo-check
+	--ephemeral --color never -C "$repo" -o "$answer")
+[ -n "$effort" ] && args+=(-c "model_reasoning_effort=$effort")
+# Ignoring user config also drops [windows] sandbox, and Codex's default Windows
+# sandbox refuses to start any shell, which leaves the seat unable to read files.
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*) args+=(-c "windows.sandbox=\"${PSTACK_CODEX_WINDOWS_SANDBOX:-elevated}\"") ;;
+esac
+
+rc=0
+codex "${args[@]}" - <"$prompt" >"$log" 2>&1 || rc=$?
+
+bytes=0
+[ -f "$answer" ] && bytes=$(wc -c <"$answer" | tr -d ' ')
+if [ "$rc" -ne 0 ] || [ "$bytes" -eq 0 ]; then
+	fail "exit=$rc bytes=$bytes $(tail -n 3 "$log" 2>/dev/null | tr '\n' ' ' | cut -c1-300)"
+fi
+
+echo "codex-seat: model=$model effort=${effort:-default} mode=$mode exit=0 answer=$answer bytes=$bytes$note"
+[ "$mode" = "write" ] && git -C "$repo" status --short
+exit 0

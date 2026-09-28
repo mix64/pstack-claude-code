@@ -36,11 +36,11 @@ Every skill except `setup-pstack` is user-invocable only (`disable-model-invocat
 |---|---|
 | `.cursor-plugin/plugin.json` | `.claude-plugin/plugin.json` |
 | `Task` tool, `generalPurpose` | Agent tool, `general-purpose` |
-| `readonly: true` | Prompt-level "do not edit files" (no flag exists) |
+| `readonly: true` | `pstack:reviewer`, an agent without edit or Agent tools |
 | `environment: "cloud"` | `isolation: "worktree"` background agents, or `isolation: "remote"` when wanted |
 | `~/.cursor/rules/pstack-models.mdc` (always-applied rule) | `~/.claude/pstack-models.md`, read at spawn time |
-| Model slugs (`grok-4.7-xhigh-fast`, `gpt-5.6-sol-max`, `claude-opus-5-5-max`) | `opus`, `sonnet`, `haiku`, `fable`, `inherit`, or `agent:<subagent_type>` |
-| Reasoning-effort budgets | `max` / `balanced` / `lean` model-tier budgets |
+| Model slugs (`grok-4.7-xhigh-fast`, `gpt-5.6-sol-max`, `claude-opus-5-5-max`) | `opus`, `sonnet`, `haiku`, `fable`, `<model>:<effort>`, `inherit`, `agent:<subagent_type>`, `codex:<model>[:<effort>]`, or `openrouter:<model-id>` |
+| Reasoning-effort budgets | `max` / `balanced` / `lean` model-tier budgets, plus a fixed effort per role with `<model>:<effort>` |
 | `~/.cursor/projects/<slug>/agent-transcripts/` | `~/.claude/projects/<slug>/<session-id>.jsonl` |
 | `subagent_type: "poteto-agent"`, `"Comment Sicko"` | `pstack:poteto-agent`, `pstack:comment-sicko` |
 | `mode: true` sticky mode with `reminder` | A sticky instruction at the top of `poteto-mode` (invoked skill content stays in context) |
@@ -55,25 +55,45 @@ Upstream runs `arena`, `architect`, and `interrogate` across Claude, GPT, and Gr
 
 | Value | Bridge | Needs | Fits |
 |---|---|---|---|
-| `codex:<model>` | `pstack:codex-bridge` runs `codex exec` | [Codex CLI](https://github.com/openai/codex) logged in (`codex login`), so it uses your ChatGPT plan | Every seat. Codex reads files and runs commands itself, and edits files in `write` mode inside the seat's worktree. |
-| `openrouter:<model-id>` | `pstack:openrouter-bridge` runs `bin/openrouter-ask` | `OPENROUTER_API_KEY` in the environment | Review, judge, and design seats. Text-in, text-out. |
+| `codex:<model>[:<effort>]` | `pstack:codex-bridge` runs `bin/codex-seat` | [Codex CLI](https://github.com/openai/codex) logged in (`codex login`), so it uses your ChatGPT plan | Review and write seats. Codex reads files and runs commands itself. |
+| `openrouter:<model-id>` | `pstack:openrouter-bridge` runs `bin/openrouter-ask` | `OPENROUTER_API_KEY` in the environment | Review, judge, and design seats. Text in, text out. |
 
-Aliases keep a rotating model in one place. `/pstack:setup-pstack` writes them, and you can edit them by hand:
+Aliases keep a model in one place, and `/pstack:setup-pstack` asks whether each external model may take judgment seats or only bulk work:
 
 ```
-@luna: codex:gpt-6-luna
-@free: openrouter:stealth/space-bunny-alpha
-interrogate reviewers: opus, opus, @free
-arena cross-judge pool: opus, @free
+@luna: codex:gpt-6-luna:max
 swarm workers: @luna
 mechanical edits: @luna
 ```
 
-Here `@free` takes judgment seats, while `@luna` only gets bulk work: parallel `swarm` slices and `mechanical edits` (bulk renames, boilerplate rewrites). The parent reviews every diff either way.
+Here `@luna` only gets bulk work: parallel `swarm` slices and `mechanical edits` (bulk renames, boilerplate rewrites). Put an alias in a panel line (`interrogate reviewers: opus, opus, @luna`) to use it for judgment instead. Leave an alias empty (`@luna:`) to drop its seats. A failed external seat falls back to the skill's default model, and the reply says so.
 
-`openrouter-ask --list-free` prints the current free OpenRouter models. Leave an alias empty (`@free:`) to drop its seats while no good free model is available. A failed or rate-limited external seat falls back to the skill's default model, and the reply says so.
+### How seats run
 
-External seats send code and diffs to that provider. Free and stealth OpenRouter models may log prompts. Keep panels Claude-only for code you cannot share.
+- **Review and write seats.** Each skill marks a spawn as one or the other. Claude review seats run as `pstack:reviewer`, which keeps Bash and MCP tools but has no edit or Agent tools. Bridges get `Mode: review` or `Mode: write`.
+- **The parent writes the prompt once.** It goes into a private file, and the bridge gets a five-line brief (model, effort, mode, repository, prompt file). The bridge returns the answer file's path, so the small relay model never retypes the task or the answer.
+- **Write seats stay in their worktree.** `codex-seat` gives Codex a writable sandbox only inside a linked git worktree, the kind the Agent tool creates with `isolation: "worktree"`. Anywhere else it downgrades the seat to review. Changes stay uncommitted for the parent to review and apply.
+- **Codex runs without your Codex extras.** `--ignore-user-config` keeps your Codex MCP servers, hooks, and notify program out of the run, because they execute outside Codex's sandbox. On Windows that also drops `[windows] sandbox`, and the default Windows sandbox cannot start a shell, so `codex-seat` passes `windows.sandbox="elevated"` (override with `PSTACK_CODEX_WINDOWS_SANDBOX`).
+- **The OpenRouter bridge never attaches secrets**: `.env` files, keys, credential files, and anything git ignores.
+
+### Claude effort per role
+
+A plain `opus` seat runs at your session's effort. Write `<model>:<effort>` for a fixed level, for example `hardest tasks: opus:max`. The Agent tool has no effort parameter, so `/pstack:setup-pstack` writes an agent pair to `~/.claude/agents/` for each such value in your config: `pstack-<model>-<effort>-review` for review seats and `pstack-<model>-<effort>` for write seats. Files it generated carry a marker, and a re-run rewrites or deletes only those.
+
+Fixed high effort costs most on frequent roles. `architect runners` and `how explorer` fire on most feature work, while `hardest tasks` and `arena runners` run rarely.
+
+### Settings worth adding
+
+Bridges run under the Bash timeout, 10 minutes by default. Write seats start from your default branch. To change both, add to `~/.claude/settings.json`:
+
+```json
+{
+  "env": { "BASH_MAX_TIMEOUT_MS": "1800000" },
+  "worktree": { "baseRef": "head" }
+}
+```
+
+External seats send code and diffs to that provider, and `reflect` sends the session transcript. Keep panels Claude-only for code you cannot share.
 
 ## Not ported
 
