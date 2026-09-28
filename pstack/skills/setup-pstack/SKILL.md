@@ -1,6 +1,6 @@
 ---
 name: setup-pstack
-description: Configure which model or subagent pstack uses per role, including fixed Claude effort levels, Codex CLI, and OpenRouter models. Writes ~/.claude/pstack-models.md, which every pstack skill reads before spawning subagents. Use for /setup-pstack, "configure pstack models", "pstack budget", "pstack effort", or changing pstack's model choices.
+description: Configure which model or subagent pstack uses per role, including fixed Claude effort levels, Codex CLI, OpenRouter, and NVIDIA (build.nvidia.com) models. Writes ~/.claude/pstack-models.md, which every pstack skill reads before spawning subagents. Use for /setup-pstack, "configure pstack models", "pstack budget", "pstack effort", or changing pstack's model choices.
 ---
 
 # Setup pstack
@@ -18,7 +18,8 @@ Every role value is one of these. A panel role takes a comma-separated list, and
 | `inherit` | `model` omitted. The seat runs on the parent session's model and effort. |
 | `agent:<name>` | `subagent_type: "<name>"`, `model` omitted. For custom agents in `~/.claude/agents/` or another plugin. Its own tool list decides whether it can write, so put it in a review seat only when it has no edit tools. |
 | `codex:<model>[:<effort>]` | `subagent_type: "pstack:codex-bridge"` with the seat brief below. Runs on the ChatGPT subscription through the Codex CLI. `<effort>` sets Codex's reasoning effort (for example `medium`, `high`, `max`). Without it, Codex uses its built-in default, not the user's Codex config. Codex reads files and runs commands itself, so it fits review and write seats. |
-| `openrouter:<model-id>` | `subagent_type: "pstack:openrouter-bridge"` with the seat brief below. Text in, text out, so it fits review, judge, and design-sketch seats. As a code-writing seat it returns a patch for the parent to apply. |
+| `openrouter:<model-id>` | `subagent_type: "pstack:chat-bridge"` with the seat brief below. Text in, text out, so it fits review, judge, and design-sketch seats. As a code-writing seat it returns a patch for the parent to apply. |
+| `nvidia:<model-id>` | Same as `openrouter:`, for a model hosted on build.nvidia.com. |
 | `@<alias>` | The value of the `@<alias>:` line in the same file. Aliases keep a model in one place. An alias with an empty value (`@gpt:`) is disabled: panel seats using it are skipped, and a single-value role using it falls back to the skill default. A disabled alias is not a failure, so do not refill its seat. |
 
 ### Seat modes
@@ -30,14 +31,14 @@ Every spawn is a **review seat** or a **write seat**, and the calling skill says
 
 ### Seat brief
 
-A `codex:` or `openrouter:` seat never retypes the task. The parent writes it once and the bridge only relays it.
+A `codex:`, `openrouter:`, or `nvidia:` seat never retypes the task. The parent writes it once and the bridge only relays it.
 
 1. Make one private directory per seat: `mktemp -d "${TMPDIR:-/tmp}/pstack-seat.XXXXXX"`.
-2. Write the whole prompt to `<dir>/prompt.md` with the Write tool: task, rubric, output format, and the paths and read-only commands it needs. Codex reads them itself. The OpenRouter bridge attaches them.
+2. Write the whole prompt to `<dir>/prompt.md` with the Write tool: task, rubric, output format, and the paths and read-only commands it needs. Codex reads them itself. The chat bridge attaches them.
 3. Spawn the bridge with exactly these lines as its prompt:
 
    ```
-   Model: <model>
+   Model: <model, or the whole openrouter:/nvidia: value>
    Effort: <effort, or default>
    Mode: review | write
    Repository: <absolute path>
@@ -98,7 +99,8 @@ Bridges run in the foreground under the Bash timeout, 10 minutes unless `BASH_MA
 - The `model` values the Agent tool accepts in this session.
 - The custom agent types listed for the Agent tool.
 - Codex: `codex --version` succeeds and `codex login status` reports a login. Then `codex:<model>` is valid. Codex rejects unknown models at run time, so use the model the user names. The `model =` line in `~/.codex/config.toml`, when present, is a good suggestion.
-- OpenRouter: `OPENROUTER_API_KEY` is set (check with `[ -n "$OPENROUTER_API_KEY" ]`, never print it). Then `openrouter:<id>` is valid for any id in `https://openrouter.ai/api/v1/models`.
+- OpenRouter: `OPENROUTER_API_KEY` is set (check with `[ -n "$OPENROUTER_API_KEY" ]`, never print it). Then `openrouter:<id>` is valid for any id `chat-ask --list openrouter` prints (`--free` for free models only).
+- NVIDIA: `NVIDIA_API_KEY` is set (an `nvapi-` key from build.nvidia.com; check it the same way). Then `nvidia:<id>` is valid for any id `chat-ask --list nvidia` prints.
 
 `inherit` is always valid.
 
@@ -116,7 +118,7 @@ The defaults are the file shape in step 5. If `~/.claude/pstack-models.md` exist
 
 **(b) Apply it.** A budget changes only plain `opus` and `sonnet` values. Keep every other value the user set on a re-run.
 
-**(c) External models.** When Codex or OpenRouter is detected, ask which external models to use and define each as an alias, for example `@gpt: codex:gpt-6-astra:high`. For each one, ask which work it may take. **Judgment seats** are the panel roles (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`). One external seat per panel restores the multi-vendor review upstream pstack was built around. **Bulk work** is `swarm workers` and `mechanical edits`. A model the user does not trust with judgment goes only in bulk work. Keep `why investigators` on Claude, since investigators need Claude Code's MCP servers. Tell the user that external seats send code and diffs to that provider. Offer to add `"env": {"BASH_MAX_TIMEOUT_MS": "1800000"}` (30-minute seats) and `"worktree": {"baseRef": "head"}` (write seats start from the current branch) to `~/.claude/settings.json`.
+**(c) External models.** When Codex, OpenRouter, or NVIDIA is detected, ask which external models to use and define each as an alias, for example `@gpt: codex:gpt-6-astra:high`. For each one, ask which work it may take. **Judgment seats** are the panel roles (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`). One external seat per panel restores the multi-vendor review upstream pstack was built around. **Bulk work** is `swarm workers` and `mechanical edits`. A model the user does not trust with judgment goes only in bulk work. Keep `why investigators` on Claude, since investigators need Claude Code's MCP servers. Tell the user that external seats send code and diffs to that provider. Offer to add `"env": {"BASH_MAX_TIMEOUT_MS": "1800000"}` (30-minute seats) and `"worktree": {"baseRef": "head"}` (write seats start from the current branch) to `~/.claude/settings.json`.
 
 **(d) Claude effort.** Plain Claude values run at the session's effort. Ask with AskUserQuestion whether any roles should run at a fixed effort, and write those as `<model>:<effort>`. Point out how often each role runs, since a fixed high effort on a frequent role costs the most: `architect runners` and `how explorer` fire on most feature work, `why investigators` and `interrogate reviewers` on bug fixes and pre-ship reviews, and `hardest tasks` and `arena runners` rarely.
 
@@ -132,7 +134,7 @@ Overwrite `~/.claude/pstack-models.md` whole, so re-runs stay idempotent. Alias 
 
 ```
 # pstack model configuration. One line per role. Delete a line to fall back to the skill default.
-# Values: opus | sonnet | haiku | fable | <model>:<effort> | inherit | agent:<subagent_type> | codex:<model>[:<effort>] | openrouter:<model-id> | @<alias>
+# Values: opus | sonnet | haiku | fable | <model>:<effort> | inherit | agent:<subagent_type> | codex:<model>[:<effort>] | openrouter:<model-id> | nvidia:<model-id> | @<alias>
 # Panel roles take a comma-separated list; one subagent per entry.
 # budget: balanced
 # Aliases. Change a model everywhere by editing one line. Leave a value empty to drop its seats.

@@ -1,0 +1,146 @@
+#!/usr/bin/env node
+// Send one prompt to a hosted chat model and print the reply.
+//   chat-ask --model <provider>:<model-id> [--prompt-file <path>] [--max-tokens N]   (prompt on stdin otherwise)
+//   chat-ask --list <provider> [--free]
+// <provider> is openrouter or nvidia. Reads the provider's key from the environment and never prints it.
+import { readFileSync } from "node:fs";
+
+const PROVIDERS = {
+  openrouter: {
+    api: "https://openrouter.ai/api/v1",
+    keyEnv: "OPENROUTER_API_KEY",
+    headers: { "X-Title": "pstack-claude-code" },
+    isFree: (m) => m.pricing?.prompt === "0" && m.pricing?.completion === "0",
+  },
+  nvidia: {
+    api: "https://integrate.api.nvidia.com/v1",
+    keyEnv: "NVIDIA_API_KEY",
+    headers: {},
+    isFree: () => true,
+  },
+};
+const TIMEOUT_MS = Number(process.env.CHAT_ASK_TIMEOUT_MS ?? process.env.OPENROUTER_TIMEOUT_MS) || 600_000;
+
+function parseArgs(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--list") args.list = provider(value(argv, ++i, a));
+    else if (a === "--free") args.free = true;
+    else if (a === "--model") args.model = value(argv, ++i, a);
+    else if (a === "--prompt-file") args.promptFile = value(argv, ++i, a);
+    else if (a === "--max-tokens") {
+      const n = Number(value(argv, ++i, a));
+      if (!Number.isInteger(n) || n <= 0) fail("--max-tokens must be a positive integer");
+      args.maxTokens = n;
+    } else fail(`unknown argument: ${a}`);
+  }
+  return args;
+}
+
+function value(argv, i, flag) {
+  const v = argv[i];
+  if (v === undefined || v.startsWith("--")) fail(`${flag} needs a value`);
+  return v;
+}
+
+function provider(name) {
+  const p = PROVIDERS[name];
+  if (!p) fail(`unknown provider "${name}" (expected ${Object.keys(PROVIDERS).join(" or ")})`);
+  return p;
+}
+
+function fail(message, code = 2) {
+  process.stderr.write(`chat-ask: ${message}\n`);
+  process.exit(code);
+}
+
+async function list(p, free) {
+  const res = await fetch(`${p.api}/models`, { signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) fail(`model list failed: HTTP ${res.status}`, 1);
+  const { data } = await res.json();
+  for (const m of data.filter((m) => !free || p.isFree(m))) {
+    process.stdout.write(`${m.id}\t${m.context_length ?? "?"}\t${m.name ?? m.owned_by ?? ""}\n`);
+  }
+}
+
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function ask({ model, promptFile, maxTokens }) {
+  if (!model) fail("--model is required");
+  const sep = model.indexOf(":");
+  if (sep < 0) fail(`--model must be <provider>:<model-id>, got "${model}"`);
+  const p = provider(model.slice(0, sep));
+  const id = model.slice(sep + 1);
+  const key = process.env[p.keyEnv];
+  if (!key) fail(`${p.keyEnv} is not set`, 1);
+  const prompt = promptFile ? readFileSync(promptFile, "utf8") : await readStdin();
+  if (!prompt.trim()) fail("empty prompt");
+
+  const res = await fetch(`${p.api}/chat/completions`, {
+    method: "POST",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...p.headers },
+    body: JSON.stringify({
+      model: id,
+      messages: [{ role: "user", content: prompt }],
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      // Streaming keeps the connection busy while a reasoning model thinks; NVIDIA's gateway drops idle requests at 300 s.
+      stream: true,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const detail = body.error?.message ?? body.detail ?? body.title ?? "request failed";
+    fail(`HTTP ${res.status}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`, 1);
+  }
+
+  let text = "";
+  let finish;
+  let usage;
+  let served = id;
+  for await (const event of sseEvents(res.body)) {
+    if (event.error) fail(`stream error: ${event.error.message ?? JSON.stringify(event.error)}`, 1);
+    served = event.model ?? served;
+    usage = event.usage ?? usage;
+    const choice = event.choices?.[0];
+    text += choice?.delta?.content ?? "";
+    finish = choice?.finish_reason ?? finish;
+  }
+  const truncated = finish === "length";
+  if (!text.trim()) fail(truncated ? "token limit reached before any answer text" : "empty completion", 1);
+  process.stdout.write(text.endsWith("\n") ? text : `${text}\n`);
+  process.stderr.write(`chat-ask: model=${served} tokens=${usage?.total_tokens ?? "?"}${truncated ? " truncated=yes" : ""}\n`);
+}
+
+async function* sseEvents(stream) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for await (const chunk of stream) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let nl;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") return;
+      try {
+        yield JSON.parse(data);
+      } catch {
+        // A keep-alive or malformed line carries no completion text.
+      }
+    }
+  }
+}
+
+const args = parseArgs(process.argv.slice(2));
+try {
+  await (args.list ? list(args.list, args.free) : ask(args));
+} catch (err) {
+  fail(err?.name === "TimeoutError" ? "request timed out" : String(err?.message ?? err), 1);
+}

@@ -39,7 +39,7 @@ Every skill except `setup-pstack` is user-invocable only (`disable-model-invocat
 | `readonly: true` | `pstack:reviewer`, an agent without edit or Agent tools |
 | `environment: "cloud"` | `isolation: "worktree"` background agents, or `isolation: "remote"` when wanted |
 | `~/.cursor/rules/pstack-models.mdc` (always-applied rule) | `~/.claude/pstack-models.md`, read at spawn time |
-| Model slugs (`grok-4.7-xhigh-fast`, `gpt-5.6-sol-max`, `claude-opus-5-5-max`) | `opus`, `sonnet`, `haiku`, `fable`, `<model>:<effort>`, `inherit`, `agent:<subagent_type>`, `codex:<model>[:<effort>]`, or `openrouter:<model-id>` |
+| Model slugs (`grok-4.7-xhigh-fast`, `gpt-5.6-sol-max`, `claude-opus-5-5-max`) | `opus`, `sonnet`, `haiku`, `fable`, `<model>:<effort>`, `inherit`, `agent:<subagent_type>`, `codex:<model>[:<effort>]`, `openrouter:<model-id>`, or `nvidia:<model-id>` |
 | Reasoning-effort budgets | `max` / `balanced` / `lean` model-tier budgets, plus a fixed effort per role with `<model>:<effort>` |
 | `~/.cursor/projects/<slug>/agent-transcripts/` | `~/.claude/projects/<slug>/<session-id>.jsonl` |
 | `subagent_type: "poteto-agent"`, `"Comment Sicko"` | `pstack:poteto-agent`, `pstack:comment-sicko` |
@@ -56,7 +56,8 @@ Upstream runs `arena`, `architect`, and `interrogate` across Claude, GPT, and Gr
 | Value | Bridge | Needs | Fits |
 |---|---|---|---|
 | `codex:<model>[:<effort>]` | `pstack:codex-bridge` runs `bin/codex-seat` | [Codex CLI](https://github.com/openai/codex) logged in (`codex login`), so it uses your ChatGPT plan | Review and write seats. Codex reads files and runs commands itself. |
-| `openrouter:<model-id>` | `pstack:openrouter-bridge` runs `bin/openrouter-ask` | `OPENROUTER_API_KEY` in the environment | Review, judge, and design seats. Text in, text out. |
+| `openrouter:<model-id>` | `pstack:chat-bridge` runs `bin/chat-ask` | `OPENROUTER_API_KEY` in the environment | Review, judge, and design seats. Text in, text out. |
+| `nvidia:<model-id>` | `pstack:chat-bridge` runs `bin/chat-ask` | `NVIDIA_API_KEY` (an `nvapi-` key from [build.nvidia.com](https://build.nvidia.com/models)) in the environment | Same as `openrouter:`. `chat-ask --list nvidia` prints the model ids. |
 
 Aliases keep a model in one place, and `/pstack:setup-pstack` asks whether each external model may take judgment seats or only bulk work:
 
@@ -74,7 +75,7 @@ Here `@luna` only gets bulk work: parallel `swarm` slices and `mechanical edits`
 - **The parent writes the prompt once.** It goes into a private file, and the bridge gets a five-line brief (model, effort, mode, repository, prompt file). The bridge returns the answer file's path, so the small relay model never retypes the task or the answer.
 - **Write seats stay in their worktree.** `codex-seat` gives Codex a writable sandbox only inside a linked git worktree, the kind the Agent tool creates with `isolation: "worktree"`. Anywhere else it downgrades the seat to review. Changes stay uncommitted for the parent to review and apply.
 - **Codex runs without your Codex extras.** `--ignore-user-config` keeps your Codex MCP servers, hooks, and notify program out of the run, because they execute outside Codex's sandbox. On Windows that also drops `[windows] sandbox`, and the default Windows sandbox cannot start a shell, so `codex-seat` passes `windows.sandbox="elevated"` (override with `PSTACK_CODEX_WINDOWS_SANDBOX`).
-- **The OpenRouter bridge never attaches secrets**: `.env` files, keys, credential files, and anything git ignores.
+- **The chat bridge never attaches secrets**: `.env` files, keys, credential files, and anything git ignores.
 
 ### Claude effort per role
 
