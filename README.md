@@ -39,7 +39,7 @@ Every skill except `setup-pstack` is user-invocable only (`disable-model-invocat
 | `readonly: true` | `pstack:reviewer`, an agent without edit or Agent tools |
 | `environment: "cloud"` | `isolation: "worktree"` background agents, or `isolation: "remote"` when wanted |
 | `~/.cursor/rules/pstack-models.mdc` (always-applied rule) | `~/.claude/pstack-models.md`, read at spawn time |
-| Model slugs (`grok-4.7-xhigh-fast`, `gpt-5.6-sol-max`, `claude-opus-5-5-max`) | `opus`, `sonnet`, `haiku`, `fable`, `<model>:<effort>`, `inherit`, `agent:<subagent_type>`, `codex:<model>[:<effort>]`, `openrouter:<model-id>`, or `nvidia:<model-id>` |
+| Model slugs (`grok-4.7-xhigh-fast`, `gpt-5.6-sol-max`, `claude-opus-5-5-max`) | `opus`, `sonnet`, `haiku`, `fable`, `<model>:<effort>`, `inherit`, `agent:<subagent_type>`, `codex:<model>[:<effort>]`, `openrouter:<model-id>`, `nvidia:<model-id>`, or `deepseek:<model-id>` |
 | Reasoning-effort budgets | `max` / `balanced` / `lean` model-tier budgets, plus a fixed effort per role with `<model>:<effort>` |
 | `~/.cursor/projects/<slug>/agent-transcripts/` | `~/.claude/projects/<slug>/<session-id>.jsonl` |
 | `subagent_type: "poteto-agent"`, `"Comment Sicko"` | `pstack:poteto-agent`, `pstack:comment-sicko` |
@@ -58,6 +58,7 @@ Upstream runs `arena`, `architect`, and `interrogate` across Claude, GPT, and Gr
 | `codex:<model>[:<effort>]` | `pstack:codex-bridge` runs `bin/codex-seat` | [Codex CLI](https://github.com/openai/codex) logged in (`codex login`), so it uses your ChatGPT plan | Review and write seats. Codex reads files and runs commands itself. |
 | `openrouter:<model-id>` | `pstack:chat-bridge` runs `bin/chat-ask` | `OPENROUTER_API_KEY` in the environment | Review, judge, and design seats. Text in, text out. |
 | `nvidia:<model-id>` | `pstack:chat-bridge` runs `bin/chat-ask` | `NVIDIA_API_KEY` (an `nvapi-` key from [build.nvidia.com](https://build.nvidia.com/models)) in the environment | Same as `openrouter:`. `chat-ask --list nvidia` prints the model ids. |
+| `deepseek:<model-id>` | `pstack:chat-bridge` runs `bin/chat-ask` | `DEEPSEEK_API_KEY` (from [platform.deepseek.com](https://platform.deepseek.com/api_keys)) in the environment | Same as `openrouter:`. `chat-ask --list deepseek` prints the model ids (`deepseek-chat`, `deepseek-reasoner`). |
 
 Aliases keep a model in one place, and `/pstack:setup-pstack` asks whether each external model may take judgment seats or only bulk work:
 

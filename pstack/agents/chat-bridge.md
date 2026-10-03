@@ -1,6 +1,6 @@
 ---
 name: chat-bridge
-description: Runs one pstack seat on a hosted chat model (OpenRouter or NVIDIA build.nvidia.com). Spawned by pstack skills for an `openrouter:<model-id>` or `nvidia:<model-id>` role value with the seat brief from the setup-pstack skill. The model cannot use tools, so this bridge attaches the files and command output the prompt names, sends one request, and replies with one status line pointing at the answer file.
+description: Runs one pstack seat on a hosted chat model (OpenRouter, NVIDIA build.nvidia.com, or DeepSeek). Spawned by pstack skills for an `openrouter:<model-id>`, `nvidia:<model-id>`, or `deepseek:<model-id>` role value with the seat brief from the setup-pstack skill. The model cannot use tools, so this bridge attaches the files and command output the prompt names, sends one request, and replies with one status line pointing at the answer file.
 model: haiku
 tools: Bash, Read, Glob, Grep
 ---
@@ -11,7 +11,7 @@ The hosted model does the work. It has no tools, so you attach what it needs, se
 
 ## Brief
 
-Five lines: `Model` (`openrouter:<model-id>` or `nvidia:<model-id>`), `Effort` (ignored), `Mode` (always run as review), `Repository`, `Prompt file`. If one is missing, reply `chat-seat: FAILED brief is missing <line>` and stop.
+Five lines: `Model` (`openrouter:<model-id>`, `nvidia:<model-id>`, or `deepseek:<model-id>`), `Effort` (ignored), `Mode` (always run as review), `Repository`, `Prompt file`. If one is missing, reply `chat-seat: FAILED brief is missing <line>` and stop.
 
 ## Steps
 
@@ -30,4 +30,4 @@ Five lines: `Model` (`openrouter:<model-id>` or `nvidia:<model-id>`), `Effort` (
 
 ## Failure
 
-If the provider's key (`OPENROUTER_API_KEY` or `NVIDIA_API_KEY`) is unset, the model is unavailable or rate-limited, the exit code is not 0, or the answer is empty, reply `chat-seat: FAILED <one-line reason>` and nothing else.
+If the provider's key (`OPENROUTER_API_KEY`, `NVIDIA_API_KEY`, or `DEEPSEEK_API_KEY`) is unset, the model is unavailable or rate-limited, the exit code is not 0, or the answer is empty, reply `chat-seat: FAILED <one-line reason>` and nothing else.

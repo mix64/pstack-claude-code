@@ -45,7 +45,7 @@ For each reviewer:
 - `subagent_type`: `pstack:reviewer` (a review seat per the **setup-pstack** skill; no edit tools)
 - `model`: the configured `interrogate reviewers` entry, or the table default with no configured line.
 
-Resolve each entry per the value grammar and spawning rules in the **setup-pstack** skill (`@<alias>` expands first; `opus`/`sonnet`/`haiku`/`fable` set `model`; `<model>:<effort>` runs the generated effort agent; `inherit` omits `model`; `agent:<name>` sets `subagent_type`; `codex:`, `openrouter:`, and `nvidia:` go through their bridge with a seat brief). Every reviewer is a review seat. External reviewers get `Mode: review`, with the filled template below as their prompt file. If a configured entry fails to spawn, run that reviewer on its table default and say so.
+Resolve each entry per the value grammar and spawning rules in the **setup-pstack** skill (`@<alias>` expands first; `opus`/`sonnet`/`haiku`/`fable` set `model`; `<model>:<effort>` runs the generated effort agent; `inherit` omits `model`; `agent:<name>` sets `subagent_type`; `codex:`, `openrouter:`, `nvidia:`, and `deepseek:` go through their bridge with a seat brief). Every reviewer is a review seat. External reviewers get `Mode: review`, with the filled template below as their prompt file. If a configured entry fails to spawn, run that reviewer on its table default and say so.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent
