@@ -1,6 +1,6 @@
 # pstack for Claude Code
 
-A Claude Code port of [pstack](https://github.com/cursor/plugins/tree/main/pstack) v0.15.5 by [poteto](https://x.com/poteto) (Lauren Tan), MIT licensed. The upstream README explains the philosophy. This file covers what differs on Claude Code.
+A Claude Code port of [pstack](https://github.com/cursor/plugins/tree/main/pstack) v0.15.9 by [poteto](https://x.com/poteto) (Lauren Tan), MIT licensed. The upstream README explains the philosophy. This file covers what differs on Claude Code.
 
 ## Install
 
@@ -28,7 +28,7 @@ Then run `/pstack:setup-pstack` once to choose models per role.
 /pstack:interrogate review this pr.
 ```
 
-Every skill except `setup-pstack` is user-invocable only (`disable-model-invocation: true`, as upstream). That keeps 45 skill descriptions out of every session's context. `poteto-mode` reaches the others by reading `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` directly.
+Every skill except `setup-pstack` is user-invocable only (`disable-model-invocation: true`, as upstream). That keeps 48 skill descriptions out of every session's context. `poteto-mode` reaches the others by reading `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` directly.
 
 ## What changed from the Cursor version
 
